@@ -21,7 +21,7 @@ class ScriptEntry:
         safe_name = self.sanitize_filename(self.name)
         bat_path = os.path.join(scripts_dir, f"{safe_name}.bat")
         with open(bat_path, "w", encoding="utf-8") as f:
-            f.write(self.content)
+            f.write(self.content.replace("\r\n", "\n").replace("\r", "\n"))
         return bat_path
 
     def to_dict(self):

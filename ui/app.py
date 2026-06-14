@@ -30,7 +30,12 @@ class NewScriptDialog(QDialog):
         {"key": "ctx_size", "label": "--ctx-size (上下文大小)", "default": "32768"},
         {"key": "alias", "label": "--alias (模型别名)", "default": "qwen"},
         {"key": "no_mmproj_offload", "label": "--no-mmproj-offload (不加载视觉模型)", "default": ""},
+        {"key": "mmproj", "label": "--mmproj (是否启用外挂视觉模型)", "default": ""},
         {"key": "reasoning", "label": "--reasoning off (关闭模型思考)", "default": ""},
+        {"key": "spec_type", "label": "--spec-type mtp (是否开启MTP预测-需模型支持)", "default": ""},
+        {"key": "spec_draft_n_max", "label": "--spec-draft-n-max (额外预测token数)", "default": "2"},
+        {"key": "cache_type_k", "label": "--cache-type-k (是否开启k量化)", "default": "q8_0"},
+        {"key": "cache_type_v", "label": "--cache-type-v (是否开启v量化)", "default": "q8_0"},
         {"key": "host", "label": "--host (监听地址)", "default": "0.0.0.0"},
     ]
 
@@ -157,6 +162,27 @@ class CheckUpdateWorker(QThread):
             self.result_signal.emit("", str(e))
 
 
+class CheckAppUpdateWorker(QThread):
+    result_signal = pyqtSignal(str, str)
+
+    def run(self):
+        try:
+            req = urllib.request.Request(
+                "https://api.github.com/repos/kkblank/Llamacpp-gui/releases/latest",
+                headers={"User-Agent": "llamacpp-gui/1.0", "Accept": "application/vnd.github+json"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                published = data.get("published_at", "")
+                if published:
+                    dt = datetime.fromisoformat(published.replace("Z", "+00:00"))
+                    self.result_signal.emit(dt.strftime("%Y-%m-%d"), "")
+                    return
+            self.result_signal.emit("", "未能获取到版本信息")
+        except Exception as e:
+            self.result_signal.emit("", str(e))
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -197,7 +223,7 @@ class MainWindow(QMainWindow):
         control_layout.addWidget(self._create_control_panel())
 
         # 日志面板
-        control_layout.addWidget(self._create_log_panel())
+        control_layout.addWidget(self._create_log_panel(), stretch=1)
 
         tabs.addTab(control_widget, "主控制")
 
@@ -232,6 +258,17 @@ class MainWindow(QMainWindow):
         browse_btn2.clicked.connect(self._select_model_file)
         row2.addWidget(browse_btn2)
         layout.addLayout(row2)
+
+        # 外挂视觉模型路径
+        row3 = QHBoxLayout()
+        row3.addWidget(QLabel("外挂视觉模型 (.gguf):"))
+        self.visual_model_path_edit = QLineEdit()
+        self.visual_model_path_edit.setReadOnly(True)
+        row3.addWidget(self.visual_model_path_edit)
+        browse_btn3 = QPushButton("选择...")
+        browse_btn3.clicked.connect(self._select_visual_model_file)
+        row3.addWidget(browse_btn3)
+        layout.addLayout(row3)
 
         return group
 
@@ -299,13 +336,21 @@ class MainWindow(QMainWindow):
 
         layout.addStretch()
 
-        self.check_update_btn = QPushButton("检查更新")
+        self.check_update_btn = QPushButton("检查llama.cpp更新")
         self.check_update_btn.clicked.connect(self._check_update)
         layout.addWidget(self.check_update_btn)
 
         self.update_date_label = QLabel("")
         self.update_date_label.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(self.update_date_label)
+
+        self.check_app_update_btn = QPushButton("检查软件更新")
+        self.check_app_update_btn.clicked.connect(self._check_app_update)
+        layout.addWidget(self.check_app_update_btn)
+
+        self.app_update_date_label = QLabel("")
+        self.app_update_date_label.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(self.app_update_date_label)
 
         return group
 
@@ -315,10 +360,10 @@ class MainWindow(QMainWindow):
 
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(150)
         layout.addWidget(self.log_text)
 
         btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
         clear_btn = QPushButton("清空日志")
         clear_btn.clicked.connect(self.log_text.clear)
         btn_layout.addWidget(clear_btn)
@@ -331,6 +376,8 @@ class MainWindow(QMainWindow):
             self.llamacpp_path_edit.setText(self.settings.llamacpp_path)
         if self.settings.model_path:
             self.model_path_edit.setText(self.settings.model_path)
+        if self.settings.visual_model_path:
+            self.visual_model_path_edit.setText(self.settings.visual_model_path)
         self._refresh_script_list()
 
     def _select_llamacpp_path(self):
@@ -359,6 +406,19 @@ class MainWindow(QMainWindow):
                 self.settings.model_path = path
                 self.settings.save()
                 self._append_log(f"模型文件已设置: {path}")
+            else:
+                QMessageBox.warning(self, "验证失败", "请选择 .gguf 格式的模型文件。")
+
+    def _select_visual_model_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择外挂视觉模型文件", "", "GGUF Files (*.gguf)"
+        )
+        if path:
+            if validate_gguf_file(path):
+                self.visual_model_path_edit.setText(path)
+                self.settings.visual_model_path = path
+                self.settings.save()
+                self._append_log(f"外挂视觉模型已设置: {path}")
             else:
                 QMessageBox.warning(self, "验证失败", "请选择 .gguf 格式的模型文件。")
 
@@ -430,13 +490,25 @@ class MainWindow(QMainWindow):
             parts.append(f'--alias "{config["alias"]}" ^')
         if "no_mmproj_offload" in config:
             parts.append("--no-mmproj-offload ^")
+        if "mmproj" in config:
+            vpath = self.settings.visual_model_path
+            if vpath:
+                parts.append(f'--mmproj "{vpath}" ^')
         if "reasoning" in config:
             parts.append("--reasoning off ^")
+        if "spec_type" in config:
+            parts.append("--spec-type mtp ^")
+        if "spec_draft_n_max" in config:
+            parts.append(f"--spec-draft-n-max {config['spec_draft_n_max']} ^")
+        if "cache_type_k" in config:
+            parts.append(f"--cache-type-k {config['cache_type_k']} ^")
+        if "cache_type_v" in config:
+            parts.append(f"--cache-type-v {config['cache_type_v']} ^")
         if "host" in config:
             parts.append(f"--host {config['host']}")
 
         lines.extend(parts)
-        return "\r\n".join(lines)
+        return "\n".join(lines)
 
     def _save_script(self):
         if self.current_script_name:
@@ -578,13 +650,32 @@ class MainWindow(QMainWindow):
 
     def _on_update_result(self, date_str, error_msg):
         self.check_update_btn.setEnabled(True)
-        self.check_update_btn.setText("检查更新")
+        self.check_update_btn.setText("检查llama.cpp更新")
         if date_str:
             self.update_date_label.setText(f"最后更新: {date_str}")
             self._append_log(f"llama.cpp 最新版本发布日期: {date_str}")
         else:
             self.update_date_label.setText("获取失败")
-            reason = f"检查更新失败: {error_msg}" if error_msg else "检查更新失败，请检查网络连接"
+            reason = f"检查llama.cpp更新失败: {error_msg}" if error_msg else "检查llama.cpp更新失败，请检查网络连接"
+            self._append_log(reason)
+
+    def _check_app_update(self):
+        self.check_app_update_btn.setEnabled(False)
+        self.check_app_update_btn.setText("检查中...")
+        self.app_update_date_label.setText("")
+        self.app_worker = CheckAppUpdateWorker()
+        self.app_worker.result_signal.connect(self._on_app_update_result)
+        self.app_worker.start()
+
+    def _on_app_update_result(self, date_str, error_msg):
+        self.check_app_update_btn.setEnabled(True)
+        self.check_app_update_btn.setText("检查软件更新")
+        if date_str:
+            self.app_update_date_label.setText(f"最新发行: {date_str}")
+            self._append_log(f"软件最新版本发布日期: {date_str}")
+        else:
+            self.app_update_date_label.setText("获取失败")
+            reason = f"检查软件更新失败: {error_msg}" if error_msg else "检查软件更新失败，请检查网络连接"
             self._append_log(reason)
 
     def _append_log(self, message):

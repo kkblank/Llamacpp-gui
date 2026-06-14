@@ -56,6 +56,14 @@ class Settings:
         self.config["model_path"] = value
 
     @property
+    def visual_model_path(self):
+        return self.config.get("visual_model_path", "")
+
+    @visual_model_path.setter
+    def visual_model_path(self, value):
+        self.config["visual_model_path"] = value
+
+    @property
     def download_path(self):
         return self.config.get("download_path", "")
 
