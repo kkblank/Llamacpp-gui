@@ -17,7 +17,7 @@ class ProcessService:
         try:
             process = subprocess.Popen(
                 ["cmd", "/c", "chcp 65001 >nul && " + bat_path],
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | 0x08000000,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
