@@ -19,8 +19,10 @@ from config.config import Settings
 from service.path_service import validate_llamacpp_file, validate_gguf_file
 from service.script_service import ScriptService
 from service.process_service import ProcessService
+from service.monitor_service import MonitorService
 from model.script import ScriptEntry
 from ui.model_tab import ModelTab
+from ui.monitor_tab import MonitorTab
 
 
 class NewScriptDialog(QDialog):
@@ -171,6 +173,7 @@ class LogWorker(QThread):
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal()
     server_ready_signal = pyqtSignal(str)
+    tps_signal = pyqtSignal(float)
 
     def __init__(self, bat_path, process_service):
         super().__init__()
@@ -179,6 +182,9 @@ class LogWorker(QThread):
         self._running = False
         self._url_emitted = False
         self._url_pattern = re.compile(r"https?://\d+\.\d+\.\d+\.\d+:\d+")
+        self._tps_pattern = re.compile(
+            r"([\d.]+)\s+tokens?\s+per\s+second"
+        )
 
     def run(self):
         self._running = True
@@ -196,6 +202,12 @@ class LogWorker(QThread):
                     if m:
                         self._url_emitted = True
                         self.server_ready_signal.emit(m.group())
+                tps_m = self._tps_pattern.search(line)
+                if tps_m:
+                    try:
+                        self.tps_signal.emit(float(tps_m.group(1)))
+                    except ValueError:
+                        pass
                 self.log_signal.emit(line)
             if not self.process_service.is_process_alive():
                 break
@@ -261,8 +273,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("llama.cpp GUI Client")
         self.resize(960, 700)
 
+        self.monitor_service = MonitorService()
+        self.monitor_tab = MonitorTab(self.monitor_service)
+
         self._init_ui()
         self._load_saved_paths()
+
+        self.monitor_service.start()
 
     def _init_ui(self):
         central = QWidget()
@@ -294,6 +311,9 @@ class MainWindow(QMainWindow):
         # 模型搜索与下载标签
         self.model_tab = ModelTab()
         tabs.addTab(self.model_tab, "模型搜索与下载")
+
+        # 性能监控标签
+        tabs.addTab(self.monitor_tab, "性能监控")
 
         main_layout.addWidget(tabs)
 
@@ -667,7 +687,9 @@ class MainWindow(QMainWindow):
         self.log_worker = LogWorker(bat_path, self.process_service)
         self.log_worker.log_signal.connect(self._append_log)
         self.log_worker.server_ready_signal.connect(self._on_server_ready)
+        self.log_worker.tps_signal.connect(self.monitor_tab.update_tps)
         self.log_worker.finished.connect(self._on_run_finished)
+        self.log_worker.finished.connect(self.monitor_tab.on_server_stopped)
         self.log_worker.start()
 
         self.is_running = True
@@ -677,6 +699,7 @@ class MainWindow(QMainWindow):
         self.status_label.setStyleSheet(
             "color: orange; font-size: 12px; font-weight: bold;"
         )
+        self.monitor_tab.on_server_started()
 
     def _on_server_ready(self, url):
         url = url.replace("0.0.0.0", "127.0.0.1")

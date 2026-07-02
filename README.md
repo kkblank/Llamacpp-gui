@@ -36,6 +36,12 @@ LlamaCPP GUI 是一个基于 PyQt6 的桌面图形界面客户端，专为 [llam
   - 检查 llama.cpp 最新版本（GitHub）
   - 检查本应用最新版本（GitHub）
 
+- **性能监控面板**：
+  - 实时显示 CPU 使用率、内存使用率，带阈值变色进度条
+  - 多 GPU 监控：每张显卡的利用率和显存占用，支持多卡
+  - 推理速度（tokens/s）实时数据 + 60 秒滚动折线图
+  - 服务器运行时长记录
+  - 采样频率可调（0.5 秒 / 1 秒 / 2 秒）
 
 ### 支持的推理参数
 
@@ -51,7 +57,7 @@ LlamaCPP GUI 是一个基于 PyQt6 的桌面图形界面客户端，专为 [llam
 
 - **操作系统**：Windows 10/11
 - **Python**：3.10 或更高版本
-- **依赖**：PyQt6 >= 6.5
+- **依赖**：PyQt6 >= 6.5、psutil >= 5.9、nvidia-ml-py >= 12.0、PyQt6-Charts >= 6.5
 
 ## 安装指南
 
@@ -128,6 +134,15 @@ pyinstaller -D -w --name='Lammacpp启动器' main.py
    - 选择下载目录，点击"下载"或"下载选中项"开始下载
    - 下载完成后，将下载的模型路径配置到应用中即可使用
 
+6. **性能监控**
+
+   - 切换到"性能监控"标签页
+   - 系统资源区实时显示 CPU 和内存使用率，进度条按阈值变色（绿 < 50% / 橙 < 80% / 红 ≥ 80%）
+   - GPU 区域显示每张显卡的利用率和显存占用，无显卡时显示"未检测到 NVIDIA GPU"
+   - 启动推理服务器后，服务器状态区自动显示推理速度和运行时长
+   - TPS 折线图展示最近 60 秒的推理速度趋势
+   - 可通过顶部的"采样频率"下拉框调整数据刷新频率
+
 
 ### 配置文件位置
 
@@ -156,10 +171,12 @@ llamacpp-gui/
 │   ├── path_service.py          # 路径验证服务
 │   ├── script_service.py        # 脚本管理服务
 │   ├── process_service.py       # 进程管理服务
-│   └── modelscope.py            # ModelScope API 集成
+│   ├── modelscope.py            # ModelScope API 集成
+│   └── monitor_service.py       # 性能数据采集服务（CPU/内存/GPU）
 ├── ui/
 │   ├── app.py                   # 主窗口和主控制标签页
-│   └── model_tab.py             # 模型搜索与下载标签页
+│   ├── model_tab.py             # 模型搜索与下载标签页
+│   └── monitor_tab.py           # 性能监控标签页
 ├── utils/
 │   ├── logger.py                # 日志工具
 │   └── validator.py             # 验证工具
