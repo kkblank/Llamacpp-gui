@@ -824,7 +824,7 @@ def main():
     from PyQt6.QtGui import QFont
 
     app = QApplication(sys.argv)
-    app.setFont(QFont("Microsoft YaHei UI", 9))
+    app.setFont(QFont())
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

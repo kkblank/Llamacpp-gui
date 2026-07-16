@@ -381,9 +381,18 @@ function buildMessagesForAgent(agent) {
   return result;
 }
 
+function buildRequestBody(messages, agent, streaming) {
+  const body = { messages, stream: streaming, temperature: agent.temperature ?? 0.8 };
+  const params = ['top_p', 'top_k', 'repeat_penalty', 'presence_penalty', 'frequency_penalty', 'min_p'];
+  for (const p of params) {
+    if (agent[p] != null) body[p] = agent[p];
+  }
+  return body;
+}
+
 async function streamChat(baseUrl, messages, agent, onDelta) {
   state.abortController = new AbortController();
-  const body = { messages, stream: true, temperature: agent.temperature != null ? agent.temperature : 0.8 };
+  const body = buildRequestBody(messages, agent, true);
 
   const res = await fetch(baseUrl + '/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -423,7 +432,7 @@ async function streamChat(baseUrl, messages, agent, onDelta) {
 }
 
 async function nonStreamChat(baseUrl, messages, agent) {
-  const body = { messages, stream: false, temperature: agent.temperature != null ? agent.temperature : 0.8 };
+  const body = buildRequestBody(messages, agent, false);
   const res = await fetch(baseUrl + '/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
@@ -931,6 +940,15 @@ function openAgentEditor(agent) {
   document.getElementById('agent-edit-temp').value = agent && agent.temperature != null ? agent.temperature : 0.8;
   document.getElementById('agent-edit-modal').dataset.editingId = agent ? agent.id : '';
 
+  const sliderIds = ['top-p', 'top-k', 'repeat-penalty', 'presence-penalty', 'frequency-penalty', 'min-p'];
+  const defaults = { 'top-p': 0.9, 'top-k': 40, 'repeat-penalty': 1.1, 'presence-penalty': 0, 'frequency-penalty': 0, 'min-p': 0.05 };
+  const keyMap = { 'top-p': 'top_p', 'top-k': 'top_k', 'repeat-penalty': 'repeat_penalty', 'presence-penalty': 'presence_penalty', 'frequency-penalty': 'frequency_penalty', 'min-p': 'min_p' };
+  for (const sid of sliderIds) {
+    const val = agent && agent[keyMap[sid]] != null ? agent[keyMap[sid]] : defaults[sid];
+    document.getElementById(`slider-${sid}`).value = val;
+    document.getElementById(`val-${sid}`).textContent = Number(val).toFixed(2);
+  }
+
   state.editingAvatar = agent ? (agent.avatar || null) : null;
   renderAvatarPreview(agent ? agent.name : '');
   highlightEmojiOption(state.editingAvatar);
@@ -1018,11 +1036,18 @@ function bindEvents() {
   document.getElementById('btn-add-agent').addEventListener('click', () => openAgentEditor(null));
   document.getElementById('btn-agent-save').addEventListener('click', async () => {
     const id = document.getElementById('agent-edit-modal').dataset.editingId;
+    const sliderIds = ['top-p', 'top-k', 'repeat-penalty', 'presence-penalty', 'frequency-penalty', 'min-p'];
+    const keyMap = { 'top-p': 'top_p', 'top-k': 'top_k', 'repeat-penalty': 'repeat_penalty', 'presence-penalty': 'presence_penalty', 'frequency-penalty': 'frequency_penalty', 'min-p': 'min_p' };
+    const extra = {};
+    for (const sid of sliderIds) {
+      extra[keyMap[sid]] = parseFloat(document.getElementById(`slider-${sid}`).value);
+    }
     const data = {
       name: document.getElementById('agent-edit-name').value.trim() || '未命名角色',
       system_prompt: document.getElementById('agent-edit-prompt').value,
       temperature: parseFloat(document.getElementById('agent-edit-temp').value) || 0.8,
       avatar: state.editingAvatar || '',
+      ...extra,
     };
     await saveAgent(id, data);
     closeModal('agent-edit-modal');
@@ -1063,6 +1088,20 @@ function bindEvents() {
     renderAvatarPreview();
     highlightEmojiOption(state.editingAvatar);
   });
+
+  // Advanced params
+  document.getElementById('advanced-toggle').addEventListener('click', () => {
+    const body = document.getElementById('advanced-body');
+    const arrow = document.querySelector('.advanced-arrow');
+    body.classList.toggle('open');
+    arrow.classList.toggle('open');
+  });
+  const sliderIds = ['top-p', 'top-k', 'repeat-penalty', 'presence-penalty', 'frequency-penalty', 'min-p'];
+  for (const sid of sliderIds) {
+    document.getElementById(`slider-${sid}`).addEventListener('input', (e) => {
+      document.getElementById(`val-${sid}`).textContent = Number(e.target.value).toFixed(2);
+    });
+  }
 
   // Settings
   document.getElementById('btn-settings').addEventListener('click', () => {

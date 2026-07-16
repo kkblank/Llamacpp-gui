@@ -20,6 +20,12 @@ DEFAULT_AGENT = {
     "name": "默认助手",
     "system_prompt": "你是一个有用的AI助手。",
     "temperature": 0.8,
+    "top_p": None,
+    "top_k": None,
+    "repeat_penalty": None,
+    "presence_penalty": None,
+    "frequency_penalty": None,
+    "min_p": None,
     "alias": "",
     "avatar": "",
     "created_at": "2024-01-01T00:00:00",
@@ -273,6 +279,12 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 "name": body.get("name", "新角色"),
                 "system_prompt": body.get("system_prompt", ""),
                 "temperature": body.get("temperature", 0.8),
+                "top_p": body.get("top_p"),
+                "top_k": body.get("top_k"),
+                "repeat_penalty": body.get("repeat_penalty"),
+                "presence_penalty": body.get("presence_penalty"),
+                "frequency_penalty": body.get("frequency_penalty"),
+                "min_p": body.get("min_p"),
                 "alias": body.get("alias", ""),
                 "avatar": body.get("avatar", ""),
                 "created_at": _now(),
@@ -326,6 +338,9 @@ class BridgeHandler(BaseHTTPRequestHandler):
                         agents[i]["alias"] = body["alias"]
                     if "avatar" in body:
                         agents[i]["avatar"] = body["avatar"]
+                    for key in ["top_p", "top_k", "repeat_penalty", "presence_penalty", "frequency_penalty", "min_p"]:
+                        if key in body:
+                            agents[i][key] = body[key]
                     _write_agent_file(agents[i])
                     self._json(200, agents[i])
                     return

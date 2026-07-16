@@ -25,11 +25,11 @@
 
 
 [data-theme="light"] {
-  --bg: #f0f2f5;
-  --bg-surface: #ffffff;
-  --bg-elevated: #ffffff;
-  --bg-hover: #e8eaed;
-  --border: #dadce0;
+  --bg: #f4f1ec;
+  --bg-surface: #faf8f5;
+  --bg-elevated: #faf8f5;
+  --bg-hover: #f0ece5;
+  --border: #e5e0da;
   --text: #202124;
   --text-dim: #5f6368;
   --text-muted: #9aa0a6;
@@ -38,9 +38,9 @@
   --danger: #d93025;
   --danger-hover: #b3261e;
   --user-bg: #e8f0fe;
-  --assistant-bg: #ffffff;
-  --think-bg: #f8f9fa;
-  --think-border: #dadce0;
+  --assistant-bg: #fdfbf9;
+  --think-bg: #f8f6f2;
+  --think-border: #e5e0da;
   --shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
@@ -275,7 +275,22 @@ select.form-input { cursor: pointer; }
 /* Inline edit */
 .msg-content.editing { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-sm); cursor: text; }
 .inline-edit-bar { display: flex; gap: 4px; margin-top: 6px; }
-.inline-edit-bar .btn { font-size: 0.857em; padding: 3px 10px; }
+.inline-edit-bar .btn { font-size: 12px; padding: 3px 10px; }
+
+/* Advanced parameters */
+.advanced-section { margin-top: 8px; }
+.advanced-toggle { display: flex; align-items: center; gap: 6px; padding: 8px 0; cursor: pointer; font-size: 0.857em; color: var(--text-dim); user-select: none; border-top: 1px solid var(--border); }
+.advanced-toggle:hover { color: var(--text); }
+.advanced-arrow { transition: transform 0.15s; display: inline-block; font-size: 10px; }
+.advanced-arrow.open { transform: rotate(90deg); }
+.advanced-body { display: none; padding: 4px 0; }
+.advanced-body.open { display: block; }
+.param-row { margin: 8px 0; }
+.param-row label { display: flex; justify-content: space-between; font-size: 0.857em; font-weight: 500; }
+.param-val { color: var(--primary); font-weight: 600; }
+.param-slider { width: 100%; height: 4px; -webkit-appearance: none; appearance: none; background: var(--border); border-radius: 2px; outline: none; margin: 6px 0; }
+.param-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--primary); cursor: pointer; border: none; }
+.param-slider::-webkit-slider-thumb:hover { background: var(--primary-hover); }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

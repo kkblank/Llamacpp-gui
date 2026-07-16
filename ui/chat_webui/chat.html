@@ -188,6 +188,43 @@
         <div class="form-hint">越低越确定，越高越随机（0.1~2.0）</div>
         <input type="number" id="agent-edit-temp" class="form-input" min="0" max="2" step="0.1" value="0.8">
       </div>
+      <div class="advanced-section">
+        <div class="advanced-toggle" id="advanced-toggle">
+          <span class="advanced-arrow">▶</span> 高级参数
+        </div>
+        <div id="advanced-body" class="advanced-body">
+          <div class="param-row">
+            <label>Top-P <span class="param-val" id="val-top-p">0.90</span></label>
+            <div class="form-hint">核采样阈值，越低越保守</div>
+            <input type="range" class="param-slider" id="slider-top-p" min="0" max="1" step="0.05" value="0.9">
+          </div>
+          <div class="param-row">
+            <label>Top-K <span class="param-val" id="val-top-k">40</span></label>
+            <div class="form-hint">只从概率最高的 K 个 token 采样</div>
+            <input type="range" class="param-slider" id="slider-top-k" min="1" max="100" step="1" value="40">
+          </div>
+          <div class="param-row">
+            <label>重复惩罚 <span class="param-val" id="val-repeat-penalty">1.10</span></label>
+            <div class="form-hint">越高越避免重复生成</div>
+            <input type="range" class="param-slider" id="slider-repeat-penalty" min="1" max="2" step="0.05" value="1.1">
+          </div>
+          <div class="param-row">
+            <label>话题惩罚 <span class="param-val" id="val-presence-penalty">0.00</span></label>
+            <div class="form-hint">鼓励生成新话题</div>
+            <input type="range" class="param-slider" id="slider-presence-penalty" min="-2" max="2" step="0.1" value="0">
+          </div>
+          <div class="param-row">
+            <label>频率惩罚 <span class="param-val" id="val-frequency-penalty">0.00</span></label>
+            <div class="form-hint">按 token 出现频率惩罚</div>
+            <input type="range" class="param-slider" id="slider-frequency-penalty" min="-2" max="2" step="0.1" value="0">
+          </div>
+          <div class="param-row">
+            <label>Min-P <span class="param-val" id="val-min-p">0.05</span></label>
+            <div class="form-hint">最低 token 概率阈值</div>
+            <input type="range" class="param-slider" id="slider-min-p" min="0" max="1" step="0.01" value="0.05">
+          </div>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" id="btn-agent-save">保存</button>
