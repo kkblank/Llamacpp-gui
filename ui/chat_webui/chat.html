@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>聊天</title>
+<link rel="stylesheet" href="chat.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="topbar-left">
+      <h1>💬 聊天</h1>
+    </div>
+    <div class="topbar-right">
+      <span id="conn-status" class="conn-status disconnected" title="点击修改 API 地址">
+        <span class="conn-dot">●</span>
+        <span class="conn-url" id="conn-url-text">未连接</span>
+      </span>
+      <button class="btn btn-sm" id="btn-new-chat">＋ 新对话</button>
+      <button class="btn btn-sm" id="btn-manage-agents">🧑 角色</button>
+      <button class="btn btn-sm btn-icon" id="btn-settings" title="设置">⚙</button>
+    </div>
+  </header>
+
+  <div id="main-layout">
+    <aside id="sidebar">
+      <div id="conv-list"></div>
+      <div id="conv-empty" class="empty-hint">暂无对话</div>
+    </aside>
+
+    <main id="chat-area">
+      <div id="agent-bar">
+        <span class="agent-bar-label">群聊成员</span>
+        <div id="agent-chips"></div>
+        <button class="btn btn-sm btn-outline" id="btn-add-member" title="添加群聊成员">＋</button>
+        <label class="stream-toggle">
+          <input type="checkbox" id="stream-toggle" checked>
+          流式
+        </label>
+      </div>
+
+      <div id="message-area">
+        <div id="msg-empty" class="empty-hint">选择一个对话或开始新对话</div>
+      </div>
+
+      <div id="input-area" class="disabled">
+        <div id="mention-popover" class="mention-popover" hidden>
+          <div id="mention-list"></div>
+        </div>
+        <button class="btn btn-icon" id="btn-upload" title="上传图片">📎</button>
+        <input type="file" id="file-input" accept="image/*" multiple hidden>
+        <div id="image-previews"></div>
+        <textarea id="input-box" rows="1" placeholder="输入消息...（Enter 发送，Shift+Enter 换行）" disabled></textarea>
+        <button class="btn btn-primary" id="btn-send" disabled>发送</button>
+        <button class="btn btn-danger" id="btn-stop" hidden>停止</button>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div id="agent-modal" class="modal" hidden>
+  <div class="modal-backdrop"></div>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>管理角色</h2>
+      <button class="btn btn-icon modal-close" data-modal="agent-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">每个角色对应一个 system prompt，同一段对话可让多个角色同时回复。</p>
+      <div id="agent-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-add-agent">＋ 添加角色</button>
+      <button class="btn modal-close" data-modal="agent-modal">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="settings-modal" class="modal" hidden>
+  <div class="modal-backdrop"></div>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>设置</h2>
+      <button class="btn btn-icon modal-close" data-modal="settings-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>💬 模型 API 地址</label>
+        <div class="form-hint">输入 llama-server 或其他 OpenAI 兼容的 API 地址</div>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="setting-api-url" class="form-input" placeholder="http://127.0.0.1:8080" style="flex:1">
+          <button class="btn btn-outline" id="btn-test-connection" style="white-space:nowrap">测试连接</button>
+        </div>
+        <div id="conn-test-result" style="font-size:12px;margin-top:4px"></div>
+      </div>
+      <div class="form-row">
+        <label>思考过程展开方式</label>
+        <div class="form-hint">控制模型思考/推理内容的默认显示状态</div>
+        <select id="setting-reasoning-display" class="form-input">
+          <option value="collapsed">默认收起</option>
+          <option value="expanded">默认展开</option>
+          <option value="hidden">隐藏</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="btn-save-settings">保存</button>
+      <button class="btn modal-close" data-modal="settings-modal">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="agent-edit-modal" class="modal" hidden>
+  <div class="modal-backdrop"></div>
+  <div class="modal-content modal-sm">
+    <div class="modal-header">
+      <h2 id="agent-edit-title">编辑角色</h2>
+      <button class="btn btn-icon modal-close" data-modal="agent-edit-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>角色名称</label>
+        <input type="text" id="agent-edit-name" class="form-input" placeholder="例如：助手、翻译官">
+      </div>
+      <div class="form-row">
+        <label>System Prompt</label>
+        <textarea id="agent-edit-prompt" class="form-input form-textarea" rows="4" placeholder="设置角色的系统提示词..."></textarea>
+      </div>
+      <div class="form-row">
+        <label>温度 (Temperature)</label>
+        <div class="form-hint">越低越确定，越高越随机（0.1~2.0）</div>
+        <input type="number" id="agent-edit-temp" class="form-input" min="0" max="2" step="0.1" value="0.8">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="btn-agent-save">保存</button>
+      <button class="btn modal-close" data-modal="agent-edit-modal">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="add-member-modal" class="modal" hidden>
+  <div class="modal-backdrop"></div>
+  <div class="modal-content modal-sm">
+    <div class="modal-header">
+      <h2>添加群聊成员</h2>
+      <button class="btn btn-icon modal-close" data-modal="add-member-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">从全局角色中选择要加入当前对话的助手</p>
+      <div id="member-select-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="btn-add-members-done">确认添加</button>
+      <button class="btn modal-close" data-modal="add-member-modal">取消</button>
+    </div>
+  </div>
+</div>
+
+<script src="chat.js"></script>
+</body>
+</html>

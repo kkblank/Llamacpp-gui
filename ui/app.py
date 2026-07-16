@@ -1,5 +1,6 @@
 import sys
 import os
+import shutil
 import json
 import re
 import urllib.request
@@ -20,6 +21,7 @@ from service.path_service import validate_llamacpp_file, validate_gguf_file
 from service.script_service import ScriptService
 from service.process_service import ProcessService
 from service.monitor_service import MonitorService
+from service.chat_bridge import start_bridge
 from model.script import ScriptEntry
 from ui.model_tab import ModelTab
 from ui.monitor_tab import MonitorTab
@@ -269,6 +271,8 @@ class MainWindow(QMainWindow):
         self.is_running = False
         self.log_worker = None
         self._server_url = ""
+        self._bridge_server = None
+        self._bridge_port = None
 
         self.setWindowTitle("llama.cpp GUI Client")
         self.resize(960, 700)
@@ -280,6 +284,15 @@ class MainWindow(QMainWindow):
         self._load_saved_paths()
 
         self.monitor_service.start()
+
+        self._ensure_webui()
+        self._start_bridge()
+
+    def closeEvent(self, event):
+        if self._bridge_server:
+            self._bridge_server.shutdown()
+        self.monitor_service.stop()
+        super().closeEvent(event)
 
     def _init_ui(self):
         central = QWidget()
@@ -414,7 +427,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.status_label)
 
         self.chat_btn = QPushButton("聊天窗口")
-        self.chat_btn.setEnabled(False)
+        self.chat_btn.setEnabled(True)
         self.chat_btn.clicked.connect(self._open_chat_window)
         layout.addWidget(self.chat_btn)
 
@@ -564,6 +577,7 @@ class MainWindow(QMainWindow):
         ]
 
         parts = []
+
         if "gpu_layers" in config:
             parts.append(f"--gpu-layers {config['gpu_layers']} ^")
         if "port" in config:
@@ -605,6 +619,8 @@ class MainWindow(QMainWindow):
         if "host" in config:
             parts.append(f"--host {config['host']}")
 
+        if parts:
+            parts[-1] = parts[-1].rstrip(" ^")
         lines.extend(parts)
         return "\n".join(lines)
 
@@ -683,7 +699,6 @@ class MainWindow(QMainWindow):
             bat_path = self.script_service.save_script(entry)
 
         self._server_url = ""
-        self.chat_btn.setEnabled(False)
         self.log_worker = LogWorker(bat_path, self.process_service)
         self.log_worker.log_signal.connect(self._append_log)
         self.log_worker.server_ready_signal.connect(self._on_server_ready)
@@ -704,23 +719,24 @@ class MainWindow(QMainWindow):
     def _on_server_ready(self, url):
         url = url.replace("0.0.0.0", "127.0.0.1")
         self._server_url = url
-        self.chat_btn.setEnabled(True)
         self._append_log(f"检测到服务已就绪: {url}")
 
     def _on_run_finished(self):
         self.is_running = False
         self.run_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
-        self.chat_btn.setEnabled(False)
         self.status_label.setText("● 就绪")
         self.status_label.setStyleSheet(
             "color: green; font-size: 12px; font-weight: bold;"
         )
 
     def _open_chat_window(self):
-        if self._server_url:
-            webbrowser.open(self._server_url)
-            self._append_log(f"已打开浏览器: {self._server_url}")
+        if self._bridge_port:
+            url = f"http://127.0.0.1:{self._bridge_port}/chat.html"
+            webbrowser.open(url)
+            self._append_log(f"已打开聊天页面: {url}")
+        else:
+            QMessageBox.warning(self, "提示", "聊天桥服务未启动。")
 
     def _stop_script(self):
         if not self.is_running:
@@ -735,11 +751,30 @@ class MainWindow(QMainWindow):
         self.is_running = False
         self.run_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
-        self.chat_btn.setEnabled(False)
         self.status_label.setText("● 就绪")
         self.status_label.setStyleSheet(
             "color: green; font-size: 12px; font-weight: bold;"
         )
+
+    def _ensure_webui(self):
+        src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chat_webui")
+        dst = os.path.abspath("data/webui")
+        if not os.path.isdir(src):
+            return
+        os.makedirs(dst, exist_ok=True)
+        for fname in ["chat.html", "chat.css", "chat.js"]:
+            s = os.path.join(src, fname)
+            if os.path.exists(s):
+                shutil.copy2(s, os.path.join(dst, fname))
+
+    def _start_bridge(self):
+        try:
+            self._bridge_server, self._bridge_port = start_bridge()
+            self._append_log(f"聊天桥服务已启动，端口: {self._bridge_port}")
+        except Exception as e:
+            self._bridge_server = None
+            self._bridge_port = None
+            self._append_log(f"聊天桥服务启动失败: {e}")
 
     def _check_update(self):
         self.check_update_btn.setEnabled(False)
