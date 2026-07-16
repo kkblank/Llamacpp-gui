@@ -202,6 +202,13 @@ select.form-input { cursor: pointer; }
 .mention { color: var(--primary); font-weight: 500; }
 #input-area { position: relative; }
 
+/* Background bar */
+.background-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--bg-surface); border-bottom: 1px solid var(--border); flex-shrink: 0; font-size: 12px; color: var(--text-dim); }
+.background-bar-label { flex-shrink: 0; font-size: 14px; }
+.background-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.background-text:hover { color: var(--text); }
+.background-text.empty { color: var(--text-muted); font-style: italic; }
+
 /* Conv rename button */
 .conv-rename { opacity: 0; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 0 4px; line-height: 1; }
 .conv-item:hover .conv-rename { opacity: 1; }

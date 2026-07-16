@@ -16,6 +16,8 @@ const state = {
   mentionFilter: '',
   mentionIdx: 0,
   editingAvatar: null,
+  maxContextRounds: 10,
+  conversationBackground: '',
 };
 
 const PRESET_EMOJIS = ['🤖','🌐','💻','✍️','📚','🎨','🧠','⚡','🎯','🔧','🗣','📝'];
@@ -26,9 +28,11 @@ async function init() {
   const saved = loadLocalSettings();
   if (saved.llamaUrl) state.llamaUrl = saved.llamaUrl;
   if (saved.reasoningDisplay) state.reasoningDisplay = saved.reasoningDisplay;
+  if (saved.maxContextRounds != null) state.maxContextRounds = saved.maxContextRounds;
 
   document.getElementById('setting-api-url').value = state.llamaUrl;
   document.getElementById('setting-reasoning-display').value = state.reasoningDisplay;
+  document.getElementById('setting-max-rounds').value = String(state.maxContextRounds);
 
   await loadAgents();
   await loadConversations();
@@ -48,6 +52,7 @@ function saveLocalSettings() {
   localStorage.setItem('chat_settings', JSON.stringify({
     llamaUrl: state.llamaUrl,
     reasoningDisplay: state.reasoningDisplay,
+    maxContextRounds: state.maxContextRounds,
   }));
 }
 
@@ -161,6 +166,8 @@ async function selectConversation(id) {
     const conv = await api('GET', `conversations/${id}`);
     state.messages = conv.messages || [];
     state.conversationAgents = conv.agents || [];
+    state.conversationBackground = conv.background || '';
+    renderBackgroundBar();
   } catch {}
   enableInput(state.conversationAgents.length > 0);
   renderMessages();
@@ -192,6 +199,8 @@ async function deleteConversation(id) {
       state.currentConvId = null;
       state.messages = [];
       state.conversationAgents = [];
+      state.conversationBackground = '';
+      renderBackgroundBar();
       enableInput(false);
       renderMessages();
     }
@@ -212,7 +221,7 @@ async function renameConversation(id) {
 }
 
 async function saveConversation(id, messages) {
-  await api('PUT', `conversations/${id}`, { messages, agents: state.conversationAgents });
+  await api('PUT', `conversations/${id}`, { messages, agents: state.conversationAgents, background: state.conversationBackground });
 }
 
 async function saveConversationAgents(id) {
@@ -327,10 +336,26 @@ function buildUserMessage(text, images) {
   return { role: 'user', content: parts };
 }
 
+function getRecentMessages(rounds) {
+  if (rounds <= 0) return state.messages;
+  const result = [];
+  let userCount = 0;
+  for (let i = state.messages.length - 1; i >= 0; i--) {
+    result.unshift(state.messages[i]);
+    if (state.messages[i].role === 'user') {
+      userCount++;
+      if (userCount >= rounds) break;
+    }
+  }
+  return result;
+}
+
 function buildMessagesForAgent(agent) {
   const result = [];
   if (agent.system_prompt) result.push({ role: 'system', content: agent.system_prompt });
-  for (const msg of state.messages) {
+  if (state.conversationBackground) result.push({ role: 'system', content: `[对话背景]\n${state.conversationBackground}` });
+  const msgs = getRecentMessages(state.maxContextRounds);
+  for (const msg of msgs) {
     if (msg.role === 'system') continue;
     let content = msg.content;
     if (msg.role === 'assistant' && msg.agent_name && msg.agent_name !== agent.name) {
@@ -829,6 +854,23 @@ function renderAgentList() {
   }
 }
 
+function renderBackgroundBar() {
+  const bar = document.getElementById('background-bar');
+  const text = document.getElementById('background-text');
+  const btn = document.getElementById('btn-edit-background');
+  if (!state.currentConvId) { bar.hidden = true; return; }
+  bar.hidden = false;
+  if (state.conversationBackground) {
+    text.textContent = state.conversationBackground;
+    text.className = 'background-text';
+    btn.textContent = '编辑';
+  } else {
+    text.textContent = '点击设定对话背景...';
+    text.className = 'background-text empty';
+    btn.textContent = '设定';
+  }
+}
+
 function enableInput(enabled) {
   const input = document.getElementById('input-box');
   const send = document.getElementById('btn-send');
@@ -993,9 +1035,26 @@ function bindEvents() {
   document.getElementById('btn-save-settings').addEventListener('click', () => {
     state.llamaUrl = document.getElementById('setting-api-url').value.trim();
     state.reasoningDisplay = document.getElementById('setting-reasoning-display').value;
+    state.maxContextRounds = parseInt(document.getElementById('setting-max-rounds').value) || 10;
     saveLocalSettings();
     if (state.llamaUrl) checkConnection();
     closeModal('settings-modal');
+  });
+
+  // Background
+  document.getElementById('btn-edit-background').addEventListener('click', () => {
+    document.getElementById('background-editor').value = state.conversationBackground;
+    openModal('background-edit-modal');
+  });
+  document.getElementById('background-text').addEventListener('click', () => {
+    document.getElementById('background-editor').value = state.conversationBackground;
+    openModal('background-edit-modal');
+  });
+  document.getElementById('btn-background-save').addEventListener('click', async () => {
+    state.conversationBackground = document.getElementById('background-editor').value.trim();
+    renderBackgroundBar();
+    closeModal('background-edit-modal');
+    if (state.currentConvId) await saveConversation(state.currentConvId, state.messages);
   });
 
   // Modal close

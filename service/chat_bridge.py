@@ -259,6 +259,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 "id": str(uuid.uuid4()),
                 "title": body.get("title", "新对话"),
                 "agents": body.get("agents", []),
+                "background": body.get("background", ""),
                 "created_at": _now(),
                 "updated_at": _now(),
                 "messages": body.get("messages", []),
@@ -302,6 +303,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
                         convs[i]["agents"] = body["agents"]
                     if "messages" in body:
                         convs[i]["messages"] = body["messages"]
+                    if "background" in body:
+                        convs[i]["background"] = body["background"]
                     convs[i]["updated_at"] = _now()
                     _write_conv_file(convs[i])
                     self._json(200, convs[i])

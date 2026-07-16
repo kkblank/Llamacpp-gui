@@ -40,6 +40,12 @@
         </label>
       </div>
 
+      <div id="background-bar" class="background-bar" hidden>
+        <span class="background-bar-label">📋</span>
+        <span id="background-text" class="background-text">点击设定对话背景...</span>
+        <button class="btn btn-sm btn-outline" id="btn-edit-background">设定</button>
+      </div>
+
       <div id="message-area">
         <div id="msg-empty" class="empty-hint">选择一个对话或开始新对话</div>
       </div>
@@ -103,6 +109,18 @@
           <option value="hidden">隐藏</option>
         </select>
       </div>
+      <div class="form-row">
+        <label>保留最近对话轮次</label>
+        <div class="form-hint">请求时只发送最近 N 轮对话（含所有助手的回复），更早的消息会被截断</div>
+        <select id="setting-max-rounds" class="form-input">
+          <option value="5">5 轮</option>
+          <option value="10" selected>10 轮</option>
+          <option value="15">15 轮</option>
+          <option value="20">20 轮</option>
+          <option value="30">30 轮</option>
+          <option value="0">全部</option>
+        </select>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" id="btn-save-settings">保存</button>
@@ -152,7 +170,7 @@
       </div>
       <div class="form-row">
         <label>System Prompt</label>
-        <textarea id="agent-edit-prompt" class="form-input form-textarea" rows="4" placeholder="设置角色的系统提示词..."></textarea>
+        <textarea id="agent-edit-prompt" class="form-input form-textarea" rows="12" placeholder="设置角色的系统提示词..." style="min-height:200px"></textarea>
       </div>
       <div class="form-row">
         <label>温度 (Temperature)</label>
@@ -181,6 +199,24 @@
     <div class="modal-footer">
       <button class="btn btn-primary" id="btn-add-members-done">确认添加</button>
       <button class="btn modal-close" data-modal="add-member-modal">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="background-edit-modal" class="modal" hidden>
+  <div class="modal-backdrop"></div>
+  <div class="modal-content modal-sm">
+    <div class="modal-header">
+      <h2>对话背景设定</h2>
+      <button class="btn btn-icon modal-close" data-modal="background-edit-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">填写此对话的整体背景信息，所有助手都能看到（如：项目目标、当前阶段、已有决策等）。每次请求都会和 system prompt 一起发送给助手。</p>
+      <textarea id="background-editor" class="form-input form-textarea" rows="8" placeholder="例如：\n这是系统架构设计讨论。\n已确定：使用微服务架构，用 Go 语言实现。\n当前阶段：正在讨论数据库选型。"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="btn-background-save">保存</button>
+      <button class="btn modal-close" data-modal="background-edit-modal">取消</button>
     </div>
   </div>
 </div>
