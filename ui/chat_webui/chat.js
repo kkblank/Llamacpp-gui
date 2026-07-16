@@ -18,6 +18,7 @@ const state = {
   editingAvatar: null,
   maxContextRounds: 10,
   conversationBackground: '',
+  scrollLocked: false,
 };
 
 const PRESET_EMOJIS = ['🤖','🌐','💻','✍️','📚','🎨','🧠','⚡','🎯','🔧','🗣','📝'];
@@ -277,12 +278,11 @@ async function sendMessage() {
 
   const promises = targetAgents.map(async (agent) => {
     const messages = buildMessagesForAgent(agent);
-    const assistantMsg = { role: 'assistant', content: '', reasoning_content: '', agent_id: agent.id, agent_name: agent.name };
+    const assistantMsg = { role: 'assistant', content: '', reasoning_content: '', agent_id: agent.id, agent_name: agent.name, started_at: Date.now() };
 
     if (streaming) {
       const msgIdx = state.messages.length;
       state.messages.push(assistantMsg);
-      // render after push — don't render per agent, batch
       renderMessages(true);
       scrollToBottom();
 
@@ -302,6 +302,9 @@ async function sendMessage() {
         renderMessages(true);
         scrollToBottom();
       }
+      state.messages[msgIdx].elapsed = (Date.now() - state.messages[msgIdx].started_at) / 1000;
+      renderMessages(true);
+      scrollToBottom();
     } else {
       state.messages.push(assistantMsg);
       renderMessages(true);
@@ -311,9 +314,11 @@ async function sendMessage() {
         const last = state.messages[state.messages.length - 1];
         last.content = result.content || '';
         last.reasoning_content = result.reasoning_content || '';
+        last.elapsed = (Date.now() - last.started_at) / 1000;
         renderMessages(true);
         scrollToBottom();
       } catch (err) {
+        state.messages[state.messages.length - 1].elapsed = (Date.now() - state.messages[state.messages.length - 1].started_at) / 1000;
         state.messages[state.messages.length - 1].content = `[错误] ${err.message}`;
         renderMessages(true);
         scrollToBottom();
@@ -662,6 +667,11 @@ function renderMessages(scroll) {
       contentDiv.dataset.index = String(i);
       contentDiv.innerHTML = renderContent(msg.content);
       bubble.appendChild(contentDiv);
+      if (msg.elapsed != null) {
+        const timeDiv = document.createElement('div'); timeDiv.className = 'msg-time';
+        timeDiv.textContent = `⏱ ${msg.elapsed.toFixed(1)}s`;
+        bubble.appendChild(timeDiv);
+      }
       bubble.appendChild(buildMsgActions(i, 'assistant'));
       group.appendChild(bubble);
     }
@@ -771,10 +781,8 @@ function startInlineEdit(index) {
 
 function renderContentWithMentions(content) {
   if (typeof content !== 'string') return renderContent(content);
-  let html = escapeHtml(content);
-  html = html.replace(/\n/g, '<br>');
+  let html = renderMarkdown(content);
   html = html.replace(/(@[\u4e00-\u9fff\w]+)/g, '<span class="mention">$1</span>');
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => `<div class="msg-code">${escapeHtml(code)}</div>`);
   return html;
 }
 
@@ -782,17 +790,21 @@ function renderContent(content) {
   if (typeof content !== 'string') {
     if (Array.isArray(content)) {
       return content.map(part => {
-        if (part.type === 'text') return escapeHtml(part.text).replace(/\n/g, '<br>') + '<br>';
+        if (part.type === 'text') return renderMarkdown(part.text);
         if (part.type === 'image_url') return `<img src="${escapeHtml(part.image_url.url)}" alt="image">`;
         return '';
       }).join('');
     }
     return String(content);
   }
-  let html = escapeHtml(content);
-  html = html.replace(/\n/g, '<br>');
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => `<div class="msg-code">${escapeHtml(code)}</div>`);
-  return html;
+  return renderMarkdown(content);
+}
+
+function renderMarkdown(text) {
+  if (typeof marked !== 'undefined' && marked.parse) {
+    return marked.parse(text, { breaks: true, gfm: true });
+  }
+  return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
 function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
@@ -882,7 +894,11 @@ function enableInput(enabled) {
 
 function showStopButton(show) { document.getElementById('btn-send').hidden = show; document.getElementById('btn-stop').hidden = !show; }
 
-function scrollToBottom() { const area = document.getElementById('message-area'); area.scrollTop = area.scrollHeight; }
+function scrollToBottom() {
+  if (state.scrollLocked) return;
+  const area = document.getElementById('message-area');
+  area.scrollTop = area.scrollHeight;
+}
 
 /* ===== Modal ===== */
 function openModal(id) { document.getElementById(id).hidden = false; }
@@ -917,6 +933,13 @@ function highlightEmojiOption(avatar) {
 function bindEvents() {
   document.getElementById('btn-send').addEventListener('click', sendMessage);
   document.getElementById('btn-stop').addEventListener('click', stopGeneration);
+
+  // Scroll lock
+  document.getElementById('message-area').addEventListener('scroll', () => {
+    const area = document.getElementById('message-area');
+    const atBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+    state.scrollLocked = !atBottom;
+  });
 
   const input = document.getElementById('input-box');
   input.addEventListener('keydown', (e) => {

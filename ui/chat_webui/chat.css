@@ -202,7 +202,28 @@ select.form-input { cursor: pointer; }
 .mention { color: var(--primary); font-weight: 500; }
 #input-area { position: relative; }
 
-/* Background bar */
+/* Markdown within messages */
+.msg-content h1, .msg-content h2, .msg-content h3, .msg-content h4 { margin: 12px 0 6px; font-weight: 600; color: var(--text); }
+.msg-content h1 { font-size: 18px; } .msg-content h2 { font-size: 16px; } .msg-content h3 { font-size: 15px; } .msg-content h4 { font-size: 14px; }
+.msg-content p { margin: 4px 0; }
+.msg-content ul, .msg-content ol { margin: 4px 0; padding-left: 20px; }
+.msg-content li { margin: 2px 0; }
+.msg-content strong { font-weight: 700; color: var(--text); }
+.msg-content em { font-style: italic; }
+.msg-content code { background: #0d1117; color: #e6e6e6; padding: 1px 5px; border-radius: 3px; font-family: "Cascadia Code", "Fira Code", monospace; font-size: 13px; }
+.msg-content pre { background: #0d1117; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin: 6px 0; overflow-x: auto; }
+.msg-content pre code { background: none; border: none; padding: 0; font-size: 13px; white-space: pre; }
+.msg-content blockquote { border-left: 3px solid var(--primary); margin: 6px 0; padding: 4px 12px; color: var(--text-dim); }
+.msg-content table { border-collapse: collapse; margin: 6px 0; width: 100%; }
+.msg-content th, .msg-content td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+.msg-content th { background: var(--bg-elevated); font-weight: 600; }
+.msg-content a { color: var(--primary); text-decoration: none; }
+.msg-content a:hover { text-decoration: underline; }
+.msg-content img { max-width: 100%; border-radius: var(--radius-sm); margin: 4px 0; }
+.msg-content hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+
+/* Time display */
+.msg-time { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-align: right; }
 .background-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--bg-surface); border-bottom: 1px solid var(--border); flex-shrink: 0; font-size: 12px; color: var(--text-dim); }
 .background-bar-label { flex-shrink: 0; font-size: 14px; }
 .background-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }

@@ -762,7 +762,7 @@ class MainWindow(QMainWindow):
         if not os.path.isdir(src):
             return
         os.makedirs(dst, exist_ok=True)
-        for fname in ["chat.html", "chat.css", "chat.js"]:
+        for fname in ["chat.html", "chat.css", "chat.js", "marked.min.js"]:
             s = os.path.join(src, fname)
             if os.path.exists(s):
                 shutil.copy2(s, os.path.join(dst, fname))
