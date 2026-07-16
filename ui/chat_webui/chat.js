@@ -19,6 +19,8 @@ const state = {
   maxContextRounds: 10,
   conversationBackground: '',
   scrollLocked: false,
+  theme: 'dark',
+  fontSize: 'normal',
 };
 
 const PRESET_EMOJIS = ['🤖','🌐','💻','✍️','📚','🎨','🧠','⚡','🎯','🔧','🗣','📝'];
@@ -30,10 +32,16 @@ async function init() {
   if (saved.llamaUrl) state.llamaUrl = saved.llamaUrl;
   if (saved.reasoningDisplay) state.reasoningDisplay = saved.reasoningDisplay;
   if (saved.maxContextRounds != null) state.maxContextRounds = saved.maxContextRounds;
+  if (saved.theme) state.theme = saved.theme;
+  if (saved.fontSize) state.fontSize = saved.fontSize;
 
   document.getElementById('setting-api-url').value = state.llamaUrl;
   document.getElementById('setting-reasoning-display').value = state.reasoningDisplay;
   document.getElementById('setting-max-rounds').value = String(state.maxContextRounds);
+  document.getElementById('setting-font-size').value = state.fontSize;
+
+  applyTheme(state.theme);
+  applyFontSize(state.fontSize);
 
   await loadAgents();
   await loadConversations();
@@ -54,6 +62,8 @@ function saveLocalSettings() {
     llamaUrl: state.llamaUrl,
     reasoningDisplay: state.reasoningDisplay,
     maxContextRounds: state.maxContextRounds,
+    theme: state.theme,
+    fontSize: state.fontSize,
   }));
 }
 
@@ -577,6 +587,16 @@ function handleImageUpload(files) {
 function removeImage(idx) { state.pendingImages.splice(idx, 1); renderImagePreviews(); }
 function clearImages() { state.pendingImages = []; renderImagePreviews(); }
 
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const btn = document.getElementById('btn-theme-toggle');
+  if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+}
+
+function applyFontSize(size) {
+  document.documentElement.dataset.fontSize = size;
+}
+
 /* ===== Rendering ===== */
 function renderConversations() {
   const list = document.getElementById('conv-list'); list.innerHTML = '';
@@ -1047,6 +1067,7 @@ function bindEvents() {
   // Settings
   document.getElementById('btn-settings').addEventListener('click', () => {
     document.getElementById('setting-api-url').value = state.llamaUrl;
+    document.getElementById('setting-font-size').value = state.fontSize;
     document.getElementById('conn-test-result').textContent = '';
     openModal('settings-modal');
   });
@@ -1059,9 +1080,19 @@ function bindEvents() {
     state.llamaUrl = document.getElementById('setting-api-url').value.trim();
     state.reasoningDisplay = document.getElementById('setting-reasoning-display').value;
     state.maxContextRounds = parseInt(document.getElementById('setting-max-rounds').value) || 10;
+    state.fontSize = document.getElementById('setting-font-size').value;
     saveLocalSettings();
+    applyFontSize(state.fontSize);
     if (state.llamaUrl) checkConnection();
     closeModal('settings-modal');
+  });
+
+  // Theme toggle
+  document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(state.theme);
+    document.getElementById('btn-theme-toggle').textContent = state.theme === 'dark' ? '🌙' : '☀️';
+    saveLocalSettings();
   });
 
   // Background

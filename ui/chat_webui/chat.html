@@ -19,6 +19,7 @@
       </span>
       <button class="btn btn-sm" id="btn-new-chat">＋ 新对话</button>
       <button class="btn btn-sm" id="btn-manage-agents">🧑 角色</button>
+      <button class="btn btn-sm btn-icon" id="btn-theme-toggle" title="切换主题">🌙</button>
       <button class="btn btn-sm btn-icon" id="btn-settings" title="设置">⚙</button>
     </div>
   </header>
@@ -119,6 +120,16 @@
           <option value="20">20 轮</option>
           <option value="30">30 轮</option>
           <option value="0">全部</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>字号大小</label>
+        <div class="form-hint">调整聊天区域文字大小</div>
+        <select id="setting-font-size" class="form-input">
+          <option value="small">小</option>
+          <option value="normal" selected>标准</option>
+          <option value="large">大</option>
+          <option value="xlarge">超大</option>
         </select>
       </div>
     </div>
