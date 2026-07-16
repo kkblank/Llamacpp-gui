@@ -233,7 +233,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
     def _serve_static(self, path):
         if path == "" or path == "/":
             path = "/chat.html"
-        safe = os.path.normpath(path).lstrip("/")
+        safe = os.path.normpath(path).strip("/\\")
         filepath = os.path.join(WEBUI_DIR, safe)
         if not filepath.startswith(os.path.normpath(WEBUI_DIR)):
             self._json(403, {"error": "forbidden"})
