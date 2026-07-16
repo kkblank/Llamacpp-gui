@@ -21,6 +21,7 @@ DEFAULT_AGENT = {
     "system_prompt": "你是一个有用的AI助手。",
     "temperature": 0.8,
     "alias": "",
+    "avatar": "",
     "created_at": "2024-01-01T00:00:00",
 }
 
@@ -272,6 +273,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 "system_prompt": body.get("system_prompt", ""),
                 "temperature": body.get("temperature", 0.8),
                 "alias": body.get("alias", ""),
+                "avatar": body.get("avatar", ""),
                 "created_at": _now(),
             }
             _write_agent_file(agent)
@@ -319,6 +321,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
                         agents[i]["temperature"] = body["temperature"]
                     if "alias" in body:
                         agents[i]["alias"] = body["alias"]
+                    if "avatar" in body:
+                        agents[i]["avatar"] = body["avatar"]
                     _write_agent_file(agents[i])
                     self._json(200, agents[i])
                     return

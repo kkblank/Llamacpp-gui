@@ -120,6 +120,33 @@
     </div>
     <div class="modal-body">
       <div class="form-row">
+        <label>头像</label>
+        <div class="avatar-editor">
+          <div id="avatar-preview" class="avatar-preview"></div>
+          <div class="avatar-editor-actions">
+            <div class="emoji-picker" id="emoji-picker">
+              <span class="emoji-option" data-emoji="🤖">🤖</span>
+              <span class="emoji-option" data-emoji="🌐">🌐</span>
+              <span class="emoji-option" data-emoji="💻">💻</span>
+              <span class="emoji-option" data-emoji="✍️">✍️</span>
+              <span class="emoji-option" data-emoji="📚">📚</span>
+              <span class="emoji-option" data-emoji="🎨">🎨</span>
+              <span class="emoji-option" data-emoji="🧠">🧠</span>
+              <span class="emoji-option" data-emoji="⚡">⚡</span>
+              <span class="emoji-option" data-emoji="🎯">🎯</span>
+              <span class="emoji-option" data-emoji="🔧">🔧</span>
+              <span class="emoji-option" data-emoji="🗣">🗣</span>
+              <span class="emoji-option" data-emoji="📝">📝</span>
+            </div>
+            <div class="avatar-btn-row">
+              <button class="btn btn-sm btn-outline" id="btn-upload-avatar">📁 上传</button>
+              <button class="btn btn-sm btn-outline" id="btn-clear-avatar">🗑 移除</button>
+            </div>
+          </div>
+        </div>
+        <input type="file" id="avatar-file-input" accept="image/*" hidden>
+      </div>
+      <div class="form-row">
         <label>角色名称</label>
         <input type="text" id="agent-edit-name" class="form-input" placeholder="例如：助手、翻译官">
       </div>

@@ -15,7 +15,11 @@ const state = {
   mentionOpen: false,
   mentionFilter: '',
   mentionIdx: 0,
+  editingAvatar: null,
 };
+
+const PRESET_EMOJIS = ['🤖','🌐','💻','✍️','📚','🎨','🧠','⚡','🎯','🔧','🗣','📝'];
+const AVATAR_COLORS = ['#4f8cff','#e74c5c','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#3498db'];
 
 /* ===== Init ===== */
 async function init() {
@@ -568,7 +572,11 @@ function renderAgentChips() {
   for (const agent of participants) {
     const chip = document.createElement('span');
     chip.className = 'agent-chip participant';
-    chip.textContent = agent.name;
+    const avatarSpan = document.createElement('span');
+    avatarSpan.className = 'chip-avatar';
+    avatarSpan.innerHTML = getAvatarHtml(agent, 'sm', { round: false });
+    chip.appendChild(avatarSpan);
+    chip.appendChild(document.createTextNode(agent.name));
     if (state.conversationAgents.length > 1) {
       const remove = document.createElement('button');
       remove.className = 'chip-remove'; remove.textContent = '×';
@@ -599,7 +607,11 @@ function renderMessages(scroll) {
       const isLast = i === state.messages.length - 1;
       bubble.className = 'msg assistant' + (isLast && state.isSending ? ' streaming' : '');
       if (msg.agent_name) {
-        const label = document.createElement('div'); label.className = 'msg-agent-label'; label.textContent = msg.agent_name;
+        const agentId = msg.agent_id;
+        const agent = state.agents.find(a => a.id === agentId);
+        const label = document.createElement('div'); label.className = 'msg-agent-label';
+        label.innerHTML = getAvatarHtml(agent || { id: agentId, name: msg.agent_name }, 'sm', { round: false }) +
+          '<span style="margin-left:6px">' + escapeHtml(msg.agent_name) + '</span>';
         bubble.appendChild(label);
       }
       if (msg.reasoning_content) {
@@ -652,6 +664,36 @@ function renderContent(content) {
 
 function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 
+function hashCode(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
+  return Math.abs(h);
+}
+
+function getAvatarHtml(agent, size, opts) {
+  const sz = size || 'md';
+  const dims = { sm: 16, md: 28, lg: 64 };
+  const fs = { sm: 10, md: 14, lg: 28 };
+  const round = opts && opts.round !== undefined ? opts.round : true;
+  const radius = round ? '50%' : '4px';
+
+  const avatar = agent && agent.avatar;
+  if (!avatar) {
+    const color = AVATAR_COLORS[hashCode(agent ? (agent.id + (agent.name || '')) : 'default') % AVATAR_COLORS.length];
+    const ch = agent && agent.name ? agent.name[0] : '?';
+    return `<div class="avatar-default" style="width:${dims[sz]}px;height:${dims[sz]}px;font-size:${fs[sz]}px;background:${color};border-radius:${radius}">${escapeHtml(ch)}</div>`;
+  }
+  if (avatar.startsWith('data:') || avatar.startsWith('http')) {
+    const r = round ? '50%' : radius;
+    return `<img class="avatar" src="${escapeHtml(avatar)}" style="width:${dims[sz]}px;height:${dims[sz]}px;border-radius:${r};object-fit:cover" alt="">`;
+  }
+  return `<div class="avatar-emoji" style="width:${dims[sz]}px;height:${dims[sz]}px;font-size:${fs[sz]}px;border-radius:${radius}">${avatar}</div>`;
+}
+
+function getDefaultAvatarHtml(name, size) {
+  return getAvatarHtml({ id: 'default', name, avatar: '' }, size);
+}
+
 function renderImagePreviews() {
   const container = document.getElementById('image-previews'); container.innerHTML = '';
   for (let i = 0; i < state.pendingImages.length; i++) {
@@ -670,6 +712,7 @@ function renderAgentList() {
   for (const agent of state.agents) {
     const card = document.createElement('div'); card.className = 'agent-card';
     card.innerHTML = `
+      <div class="agent-avatar" style="flex-shrink:0">${getAvatarHtml(agent, 'md')}</div>
       <div class="agent-info"><div class="agent-name">${escapeHtml(agent.name)}</div><div class="agent-prompt">${escapeHtml(agent.system_prompt || '(无 system prompt)')}</div></div>
       <div class="agent-actions"><button class="btn-edit" data-id="${agent.id}">✎</button>${agent.id !== 'default' ? '<button class="btn-del" data-id="' + agent.id + '">×</button>' : ''}</div>`;
     card.querySelector('.btn-edit').addEventListener('click', () => openAgentEditor(agent));
@@ -701,7 +744,23 @@ function openAgentEditor(agent) {
   document.getElementById('agent-edit-prompt').value = agent ? (agent.system_prompt || '') : '';
   document.getElementById('agent-edit-temp').value = agent && agent.temperature != null ? agent.temperature : 0.8;
   document.getElementById('agent-edit-modal').dataset.editingId = agent ? agent.id : '';
+
+  state.editingAvatar = agent ? (agent.avatar || null) : null;
+  renderAvatarPreview(agent ? agent.name : '');
+  highlightEmojiOption(state.editingAvatar);
   openModal('agent-edit-modal');
+}
+
+function renderAvatarPreview(nameHint) {
+  const el = document.getElementById('avatar-preview');
+  const agent = { id: document.getElementById('agent-edit-modal').dataset.editingId || 'new', name: document.getElementById('agent-edit-name').value || nameHint || '？', avatar: state.editingAvatar };
+  el.innerHTML = getAvatarHtml(agent, 'lg');
+}
+
+function highlightEmojiOption(avatar) {
+  for (const el of document.querySelectorAll('.emoji-option')) {
+    el.classList.toggle('selected', el.dataset.emoji === avatar);
+  }
 }
 
 /* ===== Events ===== */
@@ -770,9 +829,46 @@ function bindEvents() {
       name: document.getElementById('agent-edit-name').value.trim() || '未命名角色',
       system_prompt: document.getElementById('agent-edit-prompt').value,
       temperature: parseFloat(document.getElementById('agent-edit-temp').value) || 0.8,
+      avatar: state.editingAvatar || '',
     };
     await saveAgent(id, data);
     closeModal('agent-edit-modal');
+  });
+
+  // Avatar upload / clear / emoji
+  document.getElementById('btn-upload-avatar').addEventListener('click', () => document.getElementById('avatar-file-input').click());
+  document.getElementById('avatar-file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const max = 96; let w = img.width, h = img.height;
+        if (w > max || h > max) { if (w > h) { h = h * max / w; w = max; } else { w = w * max / h; h = max; } }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        state.editingAvatar = canvas.toDataURL('image/png');
+        renderAvatarPreview();
+        highlightEmojiOption(null);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+  document.getElementById('btn-clear-avatar').addEventListener('click', () => {
+    state.editingAvatar = null;
+    renderAvatarPreview();
+    highlightEmojiOption(null);
+  });
+  document.getElementById('emoji-picker').addEventListener('click', (e) => {
+    const target = e.target.closest('.emoji-option');
+    if (!target) return;
+    state.editingAvatar = target.dataset.emoji;
+    renderAvatarPreview();
+    highlightEmojiOption(state.editingAvatar);
   });
 
   // Settings
