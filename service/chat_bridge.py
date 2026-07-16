@@ -7,13 +7,13 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import mimetypes
 from urllib.parse import urlparse
 
-CHAT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "chat")
-CONVERSATIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "conversations")
+CHAT_DIR = os.path.abspath("data/chat")
+CONVERSATIONS_DIR = os.path.abspath("data/conversations")
 CONVERSATIONS_FILE = os.path.join(CHAT_DIR, "conversations.json")
-AGENTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "agents")
+AGENTS_DIR = os.path.abspath("data/agents")
 AGENTS_FILE = os.path.join(CHAT_DIR, "agents.json")
 PORT_FILE = os.path.join(CHAT_DIR, "bridge_port.txt")
-WEBUI_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "webui")
+WEBUI_DIR = os.path.abspath("data/webui")
 
 DEFAULT_AGENT = {
     "id": "default",
