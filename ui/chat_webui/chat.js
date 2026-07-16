@@ -556,6 +556,10 @@ function renderConversations() {
     div.dataset.id = conv.id;
     const title = document.createElement('span'); title.className = 'conv-title'; title.textContent = conv.title || '未命名对话';
     div.appendChild(title);
+    const renameBtn = document.createElement('button'); renameBtn.className = 'conv-rename'; renameBtn.textContent = '✎';
+    renameBtn.title = '重命名';
+    renameBtn.addEventListener('click', (e) => { e.stopPropagation(); renameConversation(conv.id); });
+    div.appendChild(renameBtn);
     const del = document.createElement('button'); del.className = 'conv-del'; del.textContent = '×';
     del.title = '删除对话';
     del.addEventListener('click', (e) => { e.stopPropagation(); deleteConversation(conv.id); });
@@ -599,8 +603,10 @@ function renderMessages(scroll) {
     if (msg.role === 'user') {
       const bubble = document.createElement('div');
       bubble.className = 'msg user' + (i === state.messages.length - 1 && state.isSending ? ' streaming' : '');
-      bubble.innerHTML = renderContentWithMentions(msg.content);
-      bubble.addEventListener('dblclick', () => editMessages(i));
+      const contentDiv = document.createElement('div'); contentDiv.className = 'msg-content';
+      contentDiv.innerHTML = renderContentWithMentions(msg.content);
+      bubble.appendChild(contentDiv);
+      bubble.appendChild(buildMsgActions(i, 'user'));
       group.appendChild(bubble);
     } else if (msg.role === 'assistant') {
       const bubble = document.createElement('div');
@@ -628,12 +634,114 @@ function renderMessages(scroll) {
         cd.textContent = msg.reasoning_content; block.appendChild(cd); bubble.appendChild(block);
       }
       const contentDiv = document.createElement('div'); contentDiv.className = 'msg-content';
-      contentDiv.innerHTML = renderContent(msg.content); bubble.appendChild(contentDiv);
+      contentDiv.dataset.index = String(i);
+      contentDiv.innerHTML = renderContent(msg.content);
+      bubble.appendChild(contentDiv);
+      bubble.appendChild(buildMsgActions(i, 'assistant'));
       group.appendChild(bubble);
     }
     area.appendChild(group);
   }
   if (scroll) scrollToBottom();
+}
+
+function buildMsgActions(index, role) {
+  const div = document.createElement('div'); div.className = 'msg-actions';
+
+  const editBtn = document.createElement('button'); editBtn.className = 'msg-action-btn';
+  editBtn.textContent = '✎'; editBtn.title = '编辑';
+  editBtn.addEventListener('click', (e) => { e.stopPropagation(); if (role === 'user') editMessages(index); else startInlineEdit(index); });
+  div.appendChild(editBtn);
+
+  const resendBtn = document.createElement('button'); resendBtn.className = 'msg-action-btn';
+  resendBtn.textContent = '↻'; resendBtn.title = '重新发送';
+  resendBtn.addEventListener('click', (e) => { e.stopPropagation(); resendMessage(index); });
+  div.appendChild(resendBtn);
+
+  const delBtn = document.createElement('button'); delBtn.className = 'msg-action-btn danger';
+  delBtn.textContent = '🗑'; delBtn.title = '删除';
+  delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteMessage(index); });
+  div.appendChild(delBtn);
+
+  return div;
+}
+
+function resendMessage(index) {
+  if (state.isSending) return;
+  const msg = state.messages[index];
+  if (!msg) return;
+  state.messages = state.messages.slice(0, index + 1);
+  saveConversation(state.currentConvId, state.messages);
+
+  if (msg.role === 'user') {
+    const input = document.getElementById('input-box');
+    const text = typeof msg.content === 'string' ? msg.content : '';
+    input.value = text;
+    state.pendingImages = [];
+    sendMessage();
+  } else if (msg.role === 'assistant') {
+    let userIdx = index - 1;
+    while (userIdx >= 0 && state.messages[userIdx] && state.messages[userIdx].role !== 'user') {
+      userIdx--;
+    }
+    if (userIdx >= 0) {
+      const userMsg = state.messages[userIdx];
+      const input = document.getElementById('input-box');
+      input.value = typeof userMsg.content === 'string' ? userMsg.content : '';
+      state.pendingImages = [];
+      sendMessage();
+    }
+  }
+}
+
+function deleteMessage(index) {
+  if (state.isSending) return;
+  state.messages = state.messages.slice(0, index);
+  renderMessages(true);
+  saveConversation(state.currentConvId, state.messages);
+}
+
+function startInlineEdit(index) {
+  const msg = state.messages[index];
+  if (!msg || msg.role !== 'assistant') return;
+
+  const area = document.getElementById('message-area');
+  const msgGroup = area.children[index];
+  if (!msgGroup) return;
+  const contentDiv = msgGroup.querySelector('.msg-content');
+  if (!contentDiv) return;
+
+  const origContent = typeof msg.content === 'string' ? msg.content : '';
+  contentDiv.contentEditable = 'true';
+  contentDiv.classList.add('editing');
+  contentDiv.focus();
+  const range = document.createRange(); range.selectNodeContents(contentDiv); range.collapse(false);
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+
+  const editBar = document.createElement('div'); editBar.className = 'inline-edit-bar';
+  const saveBtn = document.createElement('button'); saveBtn.className = 'btn btn-primary btn-sm'; saveBtn.textContent = '✓ 保存';
+  const cancelBtn = document.createElement('button'); cancelBtn.className = 'btn btn-sm'; cancelBtn.textContent = '取消';
+
+  saveBtn.addEventListener('click', () => {
+    const newContent = contentDiv.textContent || '';
+    state.messages[index].content = newContent;
+    state.messages = state.messages.slice(0, index + 1);
+    contentDiv.contentEditable = 'false';
+    contentDiv.classList.remove('editing');
+    if (editBar.parentNode) editBar.parentNode.removeChild(editBar);
+    renderMessages(true);
+    saveConversation(state.currentConvId, state.messages);
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    contentDiv.innerHTML = renderContent(origContent);
+    contentDiv.contentEditable = 'false';
+    contentDiv.classList.remove('editing');
+    if (editBar.parentNode) editBar.parentNode.removeChild(editBar);
+  });
+
+  editBar.appendChild(saveBtn); editBar.appendChild(cancelBtn);
+  msgGroup.appendChild(editBar);
 }
 
 function renderContentWithMentions(content) {
