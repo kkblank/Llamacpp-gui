@@ -8,9 +8,10 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QLineEdit, QPushButton, QTextEdit,
     QListWidget, QListWidgetItem, QMessageBox, QSplitter, QTabWidget,
-    QFileDialog, QInputDialog, QDialog,
+    QFileDialog, QInputDialog, QDialog, QSystemTrayIcon, QMenu,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QAction, QIcon, QPixmap, QPainter, QColor
 
 from config.config import Settings
 from utils.validator import validate_llamacpp_file, validate_gguf
@@ -47,7 +48,9 @@ class MainWindow(QMainWindow):
         self.monitor_service = MonitorService()
         self.monitor_tab = MonitorTab(self.monitor_service)
 
+        self._force_quit = False
         self._init_ui()
+        self._init_tray()
         self._load_saved_paths()
 
         self.monitor_service.start()
@@ -55,10 +58,74 @@ class MainWindow(QMainWindow):
         self._start_bridge()
 
     def closeEvent(self, event):
+        if self._force_quit:
+            self._cleanup()
+            super().closeEvent(event)
+            return
+        # 关闭窗口时最小化到系统托盘，后台继续运行
+        event.ignore()
+        self.hide()
+        self.tray_icon.showMessage(
+            "llama.cpp GUI Client",
+            "程序已最小化到系统托盘，右键托盘图标可退出。",
+            QSystemTrayIcon.MessageIcon.Information,
+            3000,
+        )
+
+    def _cleanup(self):
         if self._bridge_server:
             self._bridge_server.shutdown()
         self.monitor_service.stop()
-        super().closeEvent(event)
+
+    def _make_tray_icon(self):
+        """绘制一个简单托盘图标（绿色圆底 + L 字母）。"""
+        pixmap = QPixmap(64, 64)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor("#4CAF50"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(2, 2, 60, 60)
+        painter.setPen(QColor("white"))
+        font = painter.font()
+        font.setPixelSize(36)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "L")
+        painter.end()
+        return QIcon(pixmap)
+
+    def _init_tray(self):
+        self.tray_icon = QSystemTrayIcon(self._make_tray_icon(), self)
+        self.tray_icon.setToolTip("llama.cpp GUI Client")
+
+        menu = QMenu()
+        show_action = QAction("显示主窗口", self)
+        show_action.triggered.connect(self._show_from_tray)
+        quit_action = QAction("退出", self)
+        quit_action.triggered.connect(self._quit_app)
+        menu.addAction(show_action)
+        menu.addAction(quit_action)
+        self.tray_icon.setContextMenu(menu)
+
+        self.tray_icon.activated.connect(self._on_tray_activated)
+        self.tray_icon.show()
+
+    def _on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self._show_from_tray()
+
+    def _show_from_tray(self):
+        self.showNormal()
+        self.activateWindow()
+        self.raise_()
+
+    def _quit_app(self):
+        """从托盘菜单退出：真正结束程序。"""
+        self._force_quit = True
+        self.tray_icon.hide()
+        self._cleanup()
+        QApplication.instance().quit()
 
     def _init_ui(self):
         central = QWidget()
@@ -514,6 +581,8 @@ def main():
 
     app = QApplication(sys.argv)
     app.setFont(QFont())
+    # 关闭窗口只是隐藏到托盘，不因窗口关闭而退出程序
+    app.setQuitOnLastWindowClosed(False)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
