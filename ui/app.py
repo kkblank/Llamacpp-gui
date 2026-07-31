@@ -9,8 +9,10 @@ from PyQt6.QtWidgets import (
     QGroupBox, QLabel, QLineEdit, QPushButton, QTextEdit,
     QListWidget, QListWidgetItem, QMessageBox, QSplitter, QTabWidget,
     QFileDialog, QInputDialog, QDialog,
+    QSystemTrayIcon, QMenu, QStyle,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 
 from config.config import Settings
 from utils.validator import validate_llamacpp_file, validate_gguf
@@ -40,6 +42,10 @@ class MainWindow(QMainWindow):
         self._server_url = ""
         self._bridge_server = None
         self._bridge_port = None
+        # 是否真正退出（托盘菜单「退出」触发时为 True，此时 closeEvent 走完整清理）
+        self._really_quit = False
+        # 系统托盘图标，必须持有引用防止被 GC 回收导致图标消失
+        self.tray_icon = None
 
         self.setWindowTitle("llama.cpp GUI Client")
         self.resize(960, 700)
@@ -53,12 +59,128 @@ class MainWindow(QMainWindow):
         self.monitor_service.start()
         ensure_webui()
         self._start_bridge()
+        self._init_tray()
 
     def closeEvent(self, event):
+        # 仅当真正退出（托盘菜单「退出」）或系统托盘不可用时才关闭窗口，
+        # 否则拦截关闭事件：隐藏到系统托盘，程序继续后台运行。
+        if self._really_quit or self.tray_icon is None:
+            self._cleanup()
+            event.accept()
+            # setQuitOnLastWindowClosed(False) 下窗口关闭不会自动退出，
+            # 此处必须显式退出事件循环，否则进程会无窗口挂起。
+            QApplication.instance().quit()
+            return
+
+        event.ignore()
+        self.hide()
+        self._show_tray_message()
+
+    def _cleanup(self):
+        """程序真正退出前的完整清理流程。
+
+        依次：停止 llama-server 子进程 → 等待工作线程结束 →
+        关闭聊天桥 HTTP 服务 → 停止性能监控定时器。
+        该流程与原有 closeEvent 的清理逻辑保持一致，并补全了
+        子进程/线程的收尾，避免退出后残留后台进程。
+        """
+        # 1. 停止 llama-server 等子进程（若仍在运行）
+        if self.is_running:
+            result = self.process_service.stop_all()
+            if result["pid_stopped"] or result["name_stopped"]:
+                self._append_log("退出：已终止 llama-server 进程")
+            else:
+                self._append_log("退出：未发现需要终止的进程")
+            self.is_running = False
+
+        # 2. 等待日志工作线程结束（进程被杀后其 run 循环会自行退出）
+        if self.log_worker is not None and self.log_worker.isRunning():
+            self.log_worker.wait(3000)
+
+        # 3. 等待版本检查线程结束（最多等 2 秒，避免阻塞退出）
+        for attr in ("worker", "app_worker"):
+            w = getattr(self, attr, None)
+            if w is not None and w.isRunning():
+                w.wait(2000)
+
+        # 4. 关闭聊天桥 HTTP 服务
         if self._bridge_server:
-            self._bridge_server.shutdown()
+            try:
+                self._bridge_server.shutdown()
+            except Exception as e:
+                self._append_log(f"退出：聊天桥关闭异常: {e}")
+            self._bridge_server = None
+
+        # 5. 停止性能监控定时器
         self.monitor_service.stop()
-        super().closeEvent(event)
+
+    def _init_tray(self):
+        """初始化系统托盘图标与右键菜单。"""
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            self._append_log("系统托盘不可用，关闭窗口将直接退出程序")
+            return
+
+        # 项目暂无自定义图标资源，复用系统标准图标（计算机图标），
+        # 若后续有 app.ico 可替换为 QIcon("app.ico")。
+        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+        self.setWindowIcon(icon)
+
+        self.tray_icon = QSystemTrayIcon(icon, self)
+        self.tray_icon.setToolTip("llama.cpp GUI Client")
+
+        # 右键菜单：显示主界面 / 退出
+        self.tray_menu = QMenu()
+        show_action = self.tray_menu.addAction("显示主界面")
+        show_action.triggered.connect(self._show_main_window)
+        self.tray_menu.addSeparator()
+        quit_action = self.tray_menu.addAction("退出")
+        quit_action.triggered.connect(self._quit_app)
+        self.tray_icon.setContextMenu(self.tray_menu)
+
+        # 单击 / 双击托盘图标 → 恢复显示主窗口
+        self.tray_icon.activated.connect(self._on_tray_activated)
+
+        self.tray_icon.show()
+        self._append_log("系统托盘已启用，关闭窗口将最小化到托盘")
+
+    def _show_main_window(self):
+        """从托盘恢复显示主窗口。"""
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_tray_activated(self, reason):
+        """托盘图标被单击/双击时恢复主窗口。"""
+        if reason in (
+            QSystemTrayIcon.ActivationReason.Trigger,
+            QSystemTrayIcon.ActivationReason.DoubleClick,
+        ):
+            self._show_main_window()
+
+    def _quit_app(self):
+        """托盘菜单「退出」：走完整退出清理流程后真正退出程序。"""
+        self._really_quit = True
+        # 若窗口可见则通过 closeEvent 完成清理；若已隐藏在托盘则直接清理
+        if self.isVisible():
+            self.close()
+        else:
+            self._cleanup()
+        # 隐藏托盘图标，避免退出后系统托盘残留图标
+        if self.tray_icon is not None:
+            self.tray_icon.hide()
+        QApplication.instance().quit()
+
+    def _show_tray_message(self):
+        """关闭窗口隐藏到托盘时弹出一次托盘气泡提示。"""
+        try:
+            self.tray_icon.showMessage(
+                "llama.cpp GUI Client",
+                "程序已最小化到系统托盘，仍将继续后台运行。",
+                QSystemTrayIcon.MessageIcon.Information,
+                3000,
+            )
+        except Exception:
+            pass
 
     def _init_ui(self):
         central = QWidget()
@@ -514,6 +636,9 @@ def main():
 
     app = QApplication(sys.argv)
     app.setFont(QFont())
+    # 关键：默认 setQuitOnLastWindowClosed(True)，主窗口隐藏到托盘后
+    # 若无其他窗口，应用会自动退出 —— 必须改为 False 才能常驻托盘。
+    app.setQuitOnLastWindowClosed(False)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
